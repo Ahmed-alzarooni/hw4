@@ -1,6 +1,6 @@
 ---
 title: "Homework 4"
-author: "[Insert your name here]{style='background-color: yellow;'}"
+author: "Ahmed Alzarooni{style='background-color: yellow;'}"
 toc: true
 title-block-banner: true
 title-block-style: default
@@ -21,10 +21,9 @@ Please read the instructions carefully before submitting your assignment.
 ⚠️ Please add your name to the author information in the frontmatter before submitting your assignment ⚠️
 :::
 
-
 We will be using the following libraries:
 
-```R
+```{R}
 packages <- c(
   "dplyr", 
   "readr", 
@@ -39,7 +38,7 @@ packages <- c(
   "broom"
 )
 
-# renv::install(packages)
+#renv::install(packages)
 sapply(packages, require, character.only=T)
 ```
 
@@ -59,11 +58,13 @@ $$
 g(x, y) = (x - 3)^2 + (y - 4)^2.
 $$
 
+
 Using elementary calculus derive the expressions for
 
 $$
 \frac{d}{dx}g(x, y), \quad \text{and} \quad \frac{d}{dy}g(x, y).
 $$
+
 
 Using your answer from above, what is the answer to
 $$
@@ -71,7 +72,24 @@ $$
 $$
 
 Define $g(x, y)$ as a function in R, compute the gradient of $g(x, y)$ with respect to $x=3$ and $y=4$. Does the answer match what you expected?
+```{R}
+g <- function(x, y) {
+  (x - 3)^2 + (y - 4)^2
+}
 
+dx_g <- function(x, y) {
+  2 * (x - 3)
+}
+dy_g <- function(x, y) {
+  2 * (y - 4)
+}
+
+grad_x_3 <- dx_g(3, 4)
+grad_y_4 <- dy_g(3, 4)
+
+cat("Gradient with respect to x at (3, 4):", grad_x_3, "\n")
+cat("Gradient with respect to y at (3, 4):", grad_y_4, "\n")
+```
 ---
 
 ###### 1.2 (10 points)
@@ -104,6 +122,18 @@ $$
 
 Define $h(\u, \v)$ as a function in R, initialize the two vectors $\u$ and $\v$ as `torch_tensor`s. Compute the gradient of $h(\u, \v)$ with respect to $\u$. Does the answer match what you expected?
 
+```{R}
+u <- torch_tensor(c(-1, 1, -1, 1, -1, 1, -1, 1, -1, 1), dtype = torch_float32, requires_grad = TRUE)
+v <- torch_tensor(c(-1, -1, -1, -1, -1, 1, 1, 1, 1, 1), dtype = torch_float32)
+
+h <- function(u, v) {
+  dot_product <- sum(u * v)
+  (dot_product ^ 3)
+}
+h_value <- h(u, v)
+h_value$backward()
+u$grad
+```
 ---
 
 ###### 1.3 (5 points)
@@ -117,11 +147,22 @@ Derive the expression for
 $$
 f'(z_0) = \frac{df}{dz}\Bigg|_{z=z_0}
 $$
+$$
 and evaluate $f'(z_0)$ when $z_0 = -3.5$.
 
 Define $f(z)$ as a function in R, and using the `torch` library compute $f'(-3.5)$. 
+$$
 
+```{R}
+z <- torch_tensor(-3.5, dtype = torch_float32(), requires_grad = TRUE)
+f <- function(z) {
+  z^4 - 6 * z^2 - 3 * z + 4
+}
+f_value <- f(z)
+f_value$backward()
+z$grad
 
+```
 ---
 
 ###### 1.4 (5 points)
@@ -131,15 +172,71 @@ For the same function $f$, initialize $z[1] = -3.5$, and perform $n=100$ iterati
 > $z[{k+1}] = z[k] - \eta f'(z[k]) \ \ \ \ $ for $k = 1, 2, \dots, 100$
 
 Plot the curve $f$ and add taking $\eta = 0.02$, add the points $\{z_0, z_1, z_2, \dots z_{100}\}$ obtained using gradient descent to the plot. What do you observe?
+```{R}
+f <- function(z) {
+  z^4 - 6 * z^2 - 3 * z + 4
+}
 
+eta <- 0.02
+n_iterations <- 100
+z_values <- numeric(n_iterations + 1)
+z_values[1] <- -3.5 
+
+for (k in 1:n_iterations) {
+  z <- torch_tensor(z_values[k], dtype = torch_float32(), requires_grad = TRUE)
+  
+  f_value <- f(z)
+  f_value$backward()
+  
+  z_values[k + 1] <- z$item() - eta * z$grad$item()
+}
+
+z_seq <- seq(-5, 2, length.out = 1000)
+f_seq <- sapply(z_seq, function(x) x^4 - 6 * x^2 - 3 * x + 4)
+
+plot(z_seq, f_seq, type = 'l', main = "Gradient Descent on f(z)", xlab = "z", ylab = "f(z)", col = 'blue')
+points(z_values, sapply(z_values, function(x) x^4 - 6 * x^2 - 3 * x + 4), col = 'red', pch = 19)
+```
+
+The gradient descent path begins at the far left, starting from $z[1] = -3.5$.
+As iterations progress, the points move rightward, indicating an increase in the value of $z_k$.
+The points seem to be converging to a point on the curve, suggesting the algorithm is nearing a local minimum of the function $f(z)$.
+The spacing between the points decreases as they approach the minimum, which is consistent with the gradient becoming smaller as it approaches a minimum.
 ---
 
 ###### 1.5 (5 points)
 
 
 Redo the same analysis as **Question 1.4**, but this time using $\eta = 0.03$. What do you observe? What can you conclude from this analysis
+```{R}
+f <- function(z) {
+  z^4 - 6 * z^2 - 3 * z + 4
+}
 
+eta <- 0.03
+n_iterations <- 100
+z_values <- numeric(n_iterations + 1)
+z_values[1] <- -3.5 
 
+for (k in 1:n_iterations) {
+  z <- torch_tensor(z_values[k], dtype = torch_float32(), requires_grad = TRUE)
+  
+  f_value <- f(z)
+  f_value$backward()
+  
+  z_values[k + 1] <- z$item() - eta * z$grad$item()
+}
+
+z_seq <- seq(-5, 2, length.out = 1000)
+f_seq <- sapply(z_seq, function(x) x^4 - 6 * x^2 - 3 * x + 4)
+
+plot(z_seq, f_seq, type = 'l', main = "Gradient Descent on f(z)", xlab = "z", ylab = "f(z)", col = 'blue')
+points(z_values, sapply(z_values, function(x) x^4 - 6 * x^2 - 3 * x + 4), col = 'red', pch = 19)
+```
+The points begin at the same place, $z[1] = -3.5$, and move rightward towards the minimum, similar to the previous plot with $\eta = 0.02$.
+However, with the increased learning rate of $\eta = 0.03$, the points appear to be more spaced out compared to those in the previous plot. This suggests larger steps towards the minimum due to the higher learning rate.
+Despite the larger steps, the points do not seem to overshoot the minimum and are still converging. This could indicate that $\eta = 0.03$ is still within a reasonable range for this particular function's landscape.
+The algorithm appears to be converging to the minimum, as shown by the decreasing gradient (visible by the spacing between points getting smaller).
 
 
 <br><br><br><br>
@@ -161,10 +258,19 @@ For this question we will use the **Titanic** dataset from the Stanford data arc
 
 Read the data from the following URL as a tibble in R. Preprocess the data such that the variables are of the right data type, e.g., binary variables are encoded as factors, and convert all column names to lower case for consistency. Let's also rename the response variable `Survival` to `y` for convenience.
 
-```R
+```{R}
 url <- "https://web.stanford.edu/class/archive/cs/cs109/cs109.1166/stuff/titanic.csv"
 
-df <- ... # Insert your code here
+df <- read_csv(url) %>%
+  rename(y = Survived) %>%
+  mutate(
+    y = as.factor(y),
+    Sex = as.factor(Sex),
+    Pclass = as.factor(Pclass)
+  ) %>%
+  rename_with(tolower, everything())
+  head(df)
+
 ```
 
 ---
@@ -173,8 +279,14 @@ df <- ... # Insert your code here
 
 Visualize the correlation matrix of all numeric columns in `df` using `corrplot()`
 
-```R
-df %>% ... # Insert your code here
+```{R}
+df %>%
+  select_if(is.numeric) %>%
+  cor() %>%
+  corrplot(method = "circle", type = "upper", order = "hclust", 
+           tl.col = "black", tl.srt = 45, 
+           addCoef.col = "black", number.cex = 0.7, 
+           title = "Correlation Matrix of Numeric Variables")
 ```
 
 
@@ -193,8 +305,11 @@ Fit a logistic regression model to predict the probability of surviving the tita
 * `# parents`
 
 
-```R
-full_model <- ... # Insert your code here
+```{R}
+full_model <- glm(y ~ pclass + sex + age + fare + `siblings/spouses aboard` + `parents/children aboard`, 
+                  data = df, 
+                  family = binomial(link = "logit"))
+
 summary(full_model)
 ```
 
@@ -234,7 +349,7 @@ Complete the following function `overview` which takes in two categorical vector
 * The false positive rate, and
 * The false negative rate
 
-```R
+```{R}
 overview <- function(predicted, expected){
     accuracy <- ... # Insert your code here
     error <- ... # Insert your code here
@@ -257,7 +372,7 @@ overview <- function(predicted, expected){
 
 You can check if your function is doing what it's supposed to do by evaluating
 
-```R
+```{R}
 overview(df$y, df$y)
 ```
 and making sure that the accuracy is $100\%$ while the errors are $0\%$.
@@ -267,7 +382,7 @@ and making sure that the accuracy is $100\%$ while the errors are $0\%$.
 
 Display an overview of the key performance metrics of `full_model`
 
-```R
+```{R}
 ... # Insert your code here
 ```
 
@@ -277,12 +392,12 @@ Display an overview of the key performance metrics of `full_model`
 
 Using backward-stepwise logistic regression, find a parsimonious altenative to `full_model`, and print its `overview`
 
-```R
+```{R}
 step_model <- ... # Insert your code here. 
 summary(step_model)
 ```
 
-```R
+```{R}
 step_predictions <- ... # Insert your code here
 overview(step_predictions, df$y)
 ```
@@ -293,7 +408,7 @@ overview(step_predictions, df$y)
 
 Using the `caret` package, setup a **$5$-fold cross-validation** training method using the `caret::trainConrol()` function
 
-```R
+```{R}
 controls <- trainControl() # ... insert your code here
 ```
 
@@ -301,7 +416,7 @@ Now, using `control`, perform $5$-fold cross validation using `caret::train()` t
 
 Take the search grid for $\lambda$ to be in $\{ 2^{-20}, 2^{-19.5}, 2^{-19}, \dots, 2^{-0.5}, 2^{0} \}$.
 
-```R
+```{R}
 # Insert your code in the ... region
 lasso_fit <- train(
   x = ...,
@@ -323,20 +438,20 @@ Using the information stored in `lasso_fit$results`, plot the results for  cross
 
 First, use the `model.matrix()` function to convert the covariates of `df` to a matrix format
 
-```R
+```{R}
 covariate_matrix <- model.matrix(full_model)[, -1]
 ```
 
 Now, initialize the covariates $X$ and the response $y$ as `torch` tensors
 
-```R
+```{R}
 X <- ... # Insert your code here
 y <- ... # Insert your code here
 ```
 
 Using the `torch` library, initialize an `nn_module` which performs logistic regression for this dataset. (Remember that we have 6 different covariates)
 
-```R
+```{R}
 logistic <- nn_module(
   initialize = function() {
     self$f <- ... # Insert your code here
@@ -352,14 +467,14 @@ f <- logistic()
 
 You can verify that your code is right by checking that the output to the following code is a vector of probabilities:
 
-```R
+```{R}
 f(X)
 ```
 
 
 Now, define the loss function `Loss()` which takes in two tensors `X` and `y` and a function `Fun`, and outputs the **Binary cross Entropy loss** between `Fun(X)` and `y`. 
 
-```R
+```{R}
 Loss <- function(X, y, Fun){
   ... # Insert our code here
 }
@@ -367,7 +482,7 @@ Loss <- function(X, y, Fun){
 
 Initialize an optimizer using `optim_adam()` and perform $n=1000$ steps of gradient descent in order to fit logistic regression using `torch`.
 
-```R
+```{R}
 f <- logistic()
 optimizer <- optim_adam(...) # Insert your code here
 
@@ -377,7 +492,7 @@ n <- 1000
 
 Using the final, optimized parameters of `f`, compute the compute the predicted results on `X`
 
-```R
+```{R}
 predicted_probabilities <- f(X) %>% as_array()
 torch_predictions <- ... # Insert your code here
 
