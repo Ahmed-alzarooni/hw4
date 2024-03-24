@@ -319,6 +319,9 @@ summary(full_model)
 
 Provide an interpretation for the slope and intercept terms estimated in `full_model` in terms of the log-odds of survival in the titanic and in terms of the odds-ratio (if the covariate is also categorical).
 
+Intercept (4.109777)
+pclass2 (-1.161491)
+pclass3 (-2.350022)
 ::: {.callout-hint}
 ## 
 Recall the definition of logistic regression from the lecture notes, and also recall how we interpreted the slope in the linear regression model (particularly when the covariate was categorical).
@@ -351,14 +354,18 @@ Complete the following function `overview` which takes in two categorical vector
 
 ```{R}
 overview <- function(predicted, expected){
-    accuracy <- ... # Insert your code here
-    error <- ... # Insert your code here
-    total_false_positives <- ... # Insert your code here
-    total_true_positives <- ... # Insert your code here
-    total_false_negatives <- ... # Insert your code here
-    total_true_negatives <- ... # Insert your code here
-    false_positive_rate <- ... # Insert your code here
-    false_negative_rate <- ... # Insert your code here
+    predicted <- as.factor(predicted)
+    expected <- as.factor(expected)
+  
+
+    total_false_positives <- sum(predicted == "1" & expected == "0")
+    total_true_positives <-  sum(predicted == "1" & expected == "1")
+    total_false_negatives <- sum(predicted == "0" & expected == "1")
+    total_true_negatives <- sum(predicted == "0" & expected == "0")
+    false_positive_rate <- total_false_positives / (total_false_positives + total_true_negatives)
+    false_negative_rate <-  total_false_negatives / (total_false_negatives + total_true_positives)
+    accuracy <- (total_true_positives + total_true_negatives) / length(expected)
+    error <- 1 - accuracy
     return(
         data.frame(
             accuracy = accuracy, 
@@ -383,7 +390,13 @@ and making sure that the accuracy is $100\%$ while the errors are $0\%$.
 Display an overview of the key performance metrics of `full_model`
 
 ```{R}
-... # Insert your code here
+probabilities <- predict(full_model, df, type = "response")
+predicted <- ifelse(probabilities > 0.5, "1", "0")
+expected <- df$y
+expected <- factor(expected, levels = levels(predicted))
+performance_metrics <- overview(predicted, expected)
+print(performance_metrics)
+
 ```
 
 ---
@@ -393,12 +406,12 @@ Display an overview of the key performance metrics of `full_model`
 Using backward-stepwise logistic regression, find a parsimonious altenative to `full_model`, and print its `overview`
 
 ```{R}
-step_model <- ... # Insert your code here. 
+step_model <- step(full_model, direction = "backward")
 summary(step_model)
 ```
 
 ```{R}
-step_predictions <- ... # Insert your code here
+step_predictions <- ifelse(predict(step_model, df, type = "response") > 0.5, "1", "0")
 overview(step_predictions, df$y)
 ```
 
@@ -417,17 +430,23 @@ Now, using `control`, perform $5$-fold cross validation using `caret::train()` t
 Take the search grid for $\lambda$ to be in $\{ 2^{-20}, 2^{-19.5}, 2^{-19}, \dots, 2^{-0.5}, 2^{0} \}$.
 
 ```{R}
-# Insert your code in the ... region
+x <- df[, !(names(df) %in% "y")]
+y <- df$y
+y <- factor(y, levels = unique(y))
+
+
 lasso_fit <- train(
-  x = ...,
-  y = ...,
-  method = ...,
+  x = x,
+  y = y,
+  method = "glmnet",
   trControl = controls, 
   tuneGrid = expand.grid(
-    alpha = ...,
+    alpha = 1,
     lambda = 2^seq(-20, 0, by = 0.5)
     ),
-  family = ...
+  family = "binomial",
+  metric = "ROC",
+  preProcess = c("center", "scale")
 )
 ```
 Using the information stored in `lasso_fit$results`, plot the results for  cross-validation accuracy vs. $log_2(\lambda)$. Choose the optimal $\lambda^*$, and report your results for this value of $\lambda^*$.
@@ -445,8 +464,8 @@ covariate_matrix <- model.matrix(full_model)[, -1]
 Now, initialize the covariates $X$ and the response $y$ as `torch` tensors
 
 ```{R}
-X <- ... # Insert your code here
-y <- ... # Insert your code here
+X <- torch_tensor(as.matrix(covariate_matrix), dtype = torch_float32())
+y <- torch_tensor(as.numeric(df$y) - 1, dtype = torch_float32())
 ```
 
 Using the `torch` library, initialize an `nn_module` which performs logistic regression for this dataset. (Remember that we have 6 different covariates)
@@ -454,11 +473,11 @@ Using the `torch` library, initialize an `nn_module` which performs logistic reg
 ```{R}
 logistic <- nn_module(
   initialize = function() {
-    self$f <- ... # Insert your code here
-    self$g <- ... # Insert your code here
+    self$f <- nn_linear(in_features = ncol(covariate_matrix), out_features = 1)
+
   },
   forward = function(x) {
-    ... # Insert your code here
+    x %>% self$f() %>% torch_sigmoid()
   }
 )
 
@@ -476,25 +495,38 @@ Now, define the loss function `Loss()` which takes in two tensors `X` and `y` an
 
 ```{R}
 Loss <- function(X, y, Fun){
-  ... # Insert our code here
+  predicted_probabilities <- Fun(X)
+  y_reshaped <- y$view(-1, 1)
+  loss <- nnf_binary_cross_entropy(input = predicted_probabilities, target = y_reshaped)
+  return(loss)
 }
 ```
 
 Initialize an optimizer using `optim_adam()` and perform $n=1000$ steps of gradient descent in order to fit logistic regression using `torch`.
 
 ```{R}
+
 f <- logistic()
-optimizer <- optim_adam(...) # Insert your code here
+optimizer <- optim_adam(f$parameters, lr = 0.01) 
 
 n <- 1000
-...  # Insert your code for gradient descent here
+for (i in 1:n) {
+  optimizer$zero_grad()
+  loss <- Loss(X, y, function(x) f$forward(x))
+  loss$backward()
+  optimizer$step()
+  
+  if (i %% 100 == 0) {
+    cat("Iteration:", i, "Loss:", loss$item(), "\n")
+  }
+}
 ```
 
 Using the final, optimized parameters of `f`, compute the compute the predicted results on `X`
 
 ```{R}
 predicted_probabilities <- f(X) %>% as_array()
-torch_predictions <- ... # Insert your code here
+torch_predictions <- f(X) %>% as_array() %>% .[, 1]
 
 overview(torch_predictions, df$y)
 ```
